@@ -1,6 +1,6 @@
 // __BUILD__ 會在 GitHub Actions 部署時自動換成 commit hash，所以每次部署裝置都會抓到新版。
 // 本機自己架的話，改完程式手動把它改成任意新字串即可。
-const CACHE = 'sprout-play-__BUILD__';
+const CACHE = 'lucy-play-__BUILD__';
 const CORE = [
   './', './index.html', './manifest.webmanifest',
   './css/style.css', './js/art.js', './js/scenes.js', './js/app.js',
