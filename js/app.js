@@ -224,6 +224,8 @@
     $('stickerCount').textContent = Object.keys(stickers).length;
     show('home');
   }
+  // deploy stamps the short commit hash into #version; unstamped means a local copy
+  if ($('version').textContent.includes('BUILD')) $('version').textContent = 'dev';
   document.querySelectorAll('[data-home]').forEach(b => b.addEventListener('click', () => { ac(); goHome(); }));
   $('goFeed').addEventListener('click', () => { ac(); $('soundNote').classList.add('hidden'); startFeed(); });
   $('goBath').addEventListener('click', () => { ac(); $('soundNote').classList.add('hidden'); startBath(); });

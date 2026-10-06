@@ -46,7 +46,7 @@ python3 -m http.server 8000
 ## 部署（GitHub Pages）
 1. 推到 GitHub 的 `main` 分支
 2. Repo → Settings → Pages → Source 選 **GitHub Actions**
-3. 之後每次 push 都會自動部署，`sw.js` 版本號會自動換成 commit hash
+3. 之後每次 push 都會自動部署，`sw.js` 版本號和主畫面右下角的版本會自動換成 commit hash（本機開啟顯示 `dev`）
 
 > 私人 repo 要使用 GitHub Pages 需要 GitHub Pro/Team 方案；
 > 免費帳號可改用 Cloudflare Pages、Netlify，或自己的主機（任何靜態主機都行，必須 HTTPS 才能安裝 PWA）。
