@@ -61,7 +61,7 @@
   ];
   const CN = ['零','一','兩','三','四'];
   const COUNT_SAY = ['', '一！', '二！', '三！', '四！'];
-  const FEED_ROUNDS = 5, BATH_ROUNDS = 3, HIDE_ROUNDS = 3, HIDE_FIND = 3, SORT_ROUNDS = 6;
+  const FEED_ROUNDS = 5, BATH_ROUNDS = 3, SORT_ROUNDS = 6;
 
   /* ================= helpers ================= */
   const $ = id => document.getElementById(id);
@@ -82,7 +82,8 @@
   }
   delete settings.level;
   let stickers = store.get('stickers', {});
-  const freshStats = () => ({feed: {}, bath: {}, games: {}, playMs: 0, daily: {}, opens: 0, firstDay: null, feedRight: 0, feedWrong: 0});
+  const freshStats = () => ({feed: {}, bath: {}, sort: {}, match: {}, games: {}, playMs: 0, daily: {}, dailyGames: {}, opens: 0, firstDay: null,
+    feedRight: 0, feedWrong: 0, feedLevels: {}, sortRight: 0, sortWrong: 0, matchSizes: {}, bookOpens: 0});
   let stats = Object.assign(freshStats(), store.get('stats', {}));
   const dayKey = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   stats.opens++;
@@ -93,7 +94,12 @@
     store.set('stats', stats);
   }
   function gameStat(g) { return (stats.games[g] = stats.games[g] || {started: 0, done: 0, ms: 0}); }
-  function gameStarted(g) { gameStat(g).started++; store.set('stats', stats); }
+  function gameStarted(g) {
+    const s = gameStat(g), k = dayKey(), day = (stats.dailyGames[k] = stats.dailyGames[k] || {});
+    s.started++; s.last = k;
+    day[g] = (day[g] || 0) + 1;
+    store.set('stats', stats);
+  }
   function gameDone(g) { if (g) { gameStat(g).done++; store.set('stats', stats); } }
 
   /* ================= sound ================= */
@@ -188,7 +194,7 @@
 
   /* ================= screens ================= */
   let screen = 'home', mode = null, busy = true, activeId = null;
-  const SCREENS = ['home', 'feed', 'bath', 'hide', 'sort', 'match', 'book'];
+  const SCREENS = ['home', 'feed', 'bath', 'sort', 'match', 'book'];
   let bgOn = null, sceneNow = null;
   function setScene(name) {
     if (name === sceneNow) return;
@@ -218,12 +224,13 @@
     $('stickerCount').textContent = Object.keys(stickers).length;
     show('home');
   }
+  // deploy stamps the short commit hash into #version; unstamped means a local copy
+  if ($('version').textContent.includes('BUILD')) $('version').textContent = 'dev';
   document.querySelectorAll('[data-home]').forEach(b => b.addEventListener('click', () => { ac(); goHome(); }));
   $('goFeed').addEventListener('click', () => { ac(); $('soundNote').classList.add('hidden'); startFeed(); });
   $('goBath').addEventListener('click', () => { ac(); $('soundNote').classList.add('hidden'); startBath(); });
   $('goBook').addEventListener('click', () => { ac(); openBook(); });
-  $('againBtn').addEventListener('click', () => { ac(); ({feed: startFeed, bath: startBath, hide: startHide, sort: startSort, match: startMatch})[lastGame](); });
-  $('goHide').addEventListener('click', () => { ac(); $('soundNote').classList.add('hidden'); startHide(); });
+  $('againBtn').addEventListener('click', () => { ac(); ({feed: startFeed, bath: startBath, sort: startSort, match: startMatch})[lastGame](); });
   $('goSort').addEventListener('click', () => { ac(); $('soundNote').classList.add('hidden'); startSort(); });
   $('goMatch').addEventListener('click', () => { ac(); $('soundNote').classList.add('hidden'); startMatch(); });
   let lastGame = 'feed';
@@ -280,7 +287,7 @@
 
   /* ================= FEED ================= */
   const animalsEl = $('animals'), matEl = $('mat'), feedProgress = $('feedProgress');
-  let round = 0, eaters = [], drag = null, feedIdle = [];
+  let round = 0, eaters = [], drag = null, feedIdle = [], feedLevel = '1';
 
   function startFeed() {
     mode = 'feed'; lastGame = 'feed'; clearTimers(); gameStarted('feed');
@@ -326,6 +333,7 @@
 
   function nextRound() {
     const r = buildRound();
+    feedLevel = r.level;
     setScene(settings.bg === 'habitat' ? sceneFor(r.eaters[0].a) : randomScene());
     animalsEl.innerHTML = '';
     animalsEl.classList.toggle('duo', r.eaters.length > 1);
@@ -490,6 +498,7 @@
         else say(eater.a.name + '吃飽了！');
       }, 950);
       if (allFull) {
+        record('feedLevels', feedLevel);
         later(() => fillDot(feedProgress, round, eaters[0].a.k), 950);
         later(() => {
           round++;
@@ -836,123 +845,6 @@
     }, 4000);
   }
 
-  /* ================= HIDE & SEEK 躲貓貓 ================= */
-  const O_ = '#4A3443';
-  const HIDERS = {
-    bush:  c => `<svg viewBox="0 0 200 170"><g stroke="${O_}" stroke-width="5" fill="${c || '#5DB86A'}"><circle cx="58" cy="104" r="50"/><circle cx="142" cy="104" r="50"/><circle cx="100" cy="72" r="56"/><rect x="20" y="110" width="160" height="58" rx="28"/></g><g fill="#fff" opacity=".22"><circle cx="80" cy="60" r="12"/><circle cx="130" cy="90" r="8"/></g></svg>`,
-    flowers: () => HIDERS.bush('#6CC277').replace('</svg>', `<g>${[[60, 80, '#FF9EC7'], [120, 56, '#FFE07A'], [150, 110, '#fff'], [90, 130, '#FF9EC7'], [40, 128, '#FFE07A']].map(([x, y, c]) => `<circle cx="${x}" cy="${y}" r="9" fill="${c}" stroke="${O_}" stroke-width="3"/>`).join('')}</g></svg>`),
-    crate: () => `<svg viewBox="0 0 200 170"><g stroke="${O_}" stroke-width="5" stroke-linejoin="round"><rect x="22" y="44" width="156" height="124" rx="10" fill="#D9A066"/><path d="M22 86 H178 M22 128 H178" stroke="#A8743F"/><rect x="22" y="44" width="156" height="124" rx="10" fill="none"/><path d="M34 56 L166 156" stroke="#A8743F" stroke-width="8"/></g></svg>`,
-    hay: () => `<svg viewBox="0 0 200 170"><rect x="14" y="52" width="172" height="116" rx="34" fill="#F2C75C" stroke="${O_}" stroke-width="5"/><path d="M58 56 V164 M142 56 V164" stroke="#D9A73A" stroke-width="8"/><path d="M30 80 l10 6 M160 120 l10 -6 M90 70 l6 8" stroke="#C9952E" stroke-width="4" stroke-linecap="round"/></svg>`,
-    log: () => `<svg viewBox="0 0 200 170"><rect x="10" y="74" width="170" height="94" rx="46" fill="#A8743F" stroke="${O_}" stroke-width="5"/><ellipse cx="170" cy="121" rx="26" ry="46" fill="#E5BE85" stroke="${O_}" stroke-width="5"/><ellipse cx="170" cy="121" rx="12" ry="24" fill="none" stroke="#C99A5C" stroke-width="4"/><circle cx="60" cy="72" r="14" fill="#5DB86A" stroke="${O_}" stroke-width="4"/></svg>`,
-    rock: c => `<svg viewBox="0 0 200 170"><path d="M12 168 Q6 80 48 56 Q90 26 132 40 Q186 60 190 168 Z" fill="${c || '#B8B3C2'}" stroke="${O_}" stroke-width="5" stroke-linejoin="round"/><path d="M60 92 Q80 78 104 84" stroke="#fff" stroke-width="6" opacity=".5" fill="none" stroke-linecap="round"/></svg>`,
-    sandcastle: () => `<svg viewBox="0 0 200 170"><g fill="#F2CF86" stroke="${O_}" stroke-width="5" stroke-linejoin="round"><path d="M20 168 V96 H180 V168 Z"/><path d="M60 96 V44 H140 V96"/><path d="M60 44 V30 H76 V44 M92 44 V30 H108 V44 M124 44 V30 H140 V44"/><path d="M20 96 V80 H36 V96 M164 96 V80 H180 V96"/></g><path d="M100 30 V8 L120 16 L100 22" fill="#FF9EC7" stroke="${O_}" stroke-width="4"/><path d="M86 168 V136 Q100 120 114 136 V168" fill="#D9A866" stroke="${O_}" stroke-width="4"/></svg>`,
-    bucket: () => `<svg viewBox="0 0 200 170"><path d="M34 62 L50 168 H150 L166 62 Z" fill="#5BC0F0" stroke="${O_}" stroke-width="5" stroke-linejoin="round"/><path d="M34 62 Q100 0 166 62" fill="none" stroke="${O_}" stroke-width="5"/><rect x="28" y="54" width="144" height="20" rx="8" fill="#FFE07A" stroke="${O_}" stroke-width="5"/><circle cx="100" cy="118" r="14" fill="#FFE07A" stroke="${O_}" stroke-width="4"/></svg>`,
-    snow: () => `<svg viewBox="0 0 200 170"><path d="M8 168 Q8 66 70 52 Q110 22 152 52 Q196 74 192 168 Z" fill="#fff" stroke="#9CC6E0" stroke-width="5" stroke-linejoin="round"/><path d="M50 120 Q70 108 92 116 M120 100 Q140 92 160 104" stroke="#D6E9F5" stroke-width="6" fill="none" stroke-linecap="round"/></svg>`,
-    snowman: () => `<svg viewBox="0 0 200 170"><g stroke="#9CC6E0" stroke-width="5"><circle cx="100" cy="122" r="58" fill="#fff"/><circle cx="100" cy="46" r="38" fill="#fff"/></g><circle cx="88" cy="40" r="5" fill="${O_}"/><circle cx="112" cy="40" r="5" fill="${O_}"/><path d="M100 50 L124 56 L100 60 Z" fill="#FF9F3D"/><path d="M66 78 Q100 92 134 78 L138 92 Q100 106 62 92 Z" fill="#FF6B8B" stroke="${O_}" stroke-width="3"/><circle cx="100" cy="116" r="5" fill="${O_}"/><circle cx="100" cy="138" r="5" fill="${O_}"/></svg>`,
-    seaRock: () => HIDERS.rock('#7FA3C2'),
-    coral: () => `<svg viewBox="0 0 200 170"><g fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M100 168 V70 M100 110 Q60 100 52 40 M100 96 Q140 84 150 30 M52 70 Q30 60 28 30 M150 70 Q174 66 178 40 M70 168 Q60 130 30 120 M130 168 Q144 130 172 124" stroke="${O_}" stroke-width="34"/><path d="M100 168 V70 M100 110 Q60 100 52 40 M100 96 Q140 84 150 30 M52 70 Q30 60 28 30 M150 70 Q174 66 178 40 M70 168 Q60 130 30 120 M130 168 Q144 130 172 124" stroke="#FF8FA3" stroke-width="26"/></g><rect x="20" y="146" width="160" height="22" rx="11" fill="#F2D59A" stroke="${O_}" stroke-width="4"/></svg>`,
-    chest: () => `<svg viewBox="0 0 200 170"><g stroke="${O_}" stroke-width="5" stroke-linejoin="round"><path d="M22 70 Q22 26 100 26 Q178 26 178 70 Z" fill="#B97A3E"/><rect x="22" y="70" width="156" height="98" rx="8" fill="#C98A55"/><path d="M22 70 H178" stroke-width="7"/><path d="M60 26 V168 M140 26 V168" stroke="#FFC93C" stroke-width="10"/><rect x="86" y="60" width="28" height="32" rx="6" fill="#FFC93C"/></g><circle cx="100" cy="78" r="4" fill="${O_}"/></svg>`,
-    leaves: () => `<svg viewBox="0 0 200 170"><g stroke="#2F6B3E" stroke-width="5" stroke-linejoin="round">${[[-30, 100, 168, '#3E8F4E'], [-80, 40, 168, '#5DB86A'], [-140, 160, 168, '#4FA35E'], [-110, 100, 150, '#6CC277']].map(([r, x, y, c]) => `<path transform="translate(${x} ${y}) rotate(${r})" d="M0 0 Q50 -60 140 -16 Q70 36 0 0 Z" fill="${c}"/>`).join('')}</g></svg>`,
-    grass: () => `<svg viewBox="0 0 200 170"><g fill="#C9A044" stroke="${O_}" stroke-width="4" stroke-linejoin="round">${[20, 46, 72, 98, 124, 150].map((x, i) => `<path d="M${x} 168 Q${x + 4} ${80 - (i % 2) * 30} ${x + 22} ${40 + (i % 3) * 14} Q${x + 18} ${100} ${x + 32} 168 Z"/>`).join('')}</g><rect x="10" y="130" width="182" height="38" rx="18" fill="#D8B45A" stroke="${O_}" stroke-width="4"/></svg>`,
-  };
-  const HIDE_SCENES = [
-    {scene:'meadow',  hiders:['bush', 'flowers', 'crate']},
-    {scene:'farm',    hiders:['hay', 'crate', 'bush']},
-    {scene:'forest',  hiders:['bush', 'log', 'rock']},
-    {scene:'beach',   hiders:['sandcastle', 'bucket', 'rock']},
-    {scene:'snow',    hiders:['snow', 'snowman', 'snow']},
-    {scene:'savanna', hiders:['grass', 'rock', 'bush']},
-    {scene:'zoo',     hiders:['crate', 'bush', 'rock']},
-    {scene:'pond',    hiders:['bush', 'rock', 'log']},
-    {scene:'underwater', hiders:['coral', 'chest', 'seaRock']},
-    {scene:'jungle',  hiders:['leaves', 'bush', 'log']},
-    {scene:'garden',  hiders:['flowers', 'bush', 'crate']},
-    {scene:'night',   hiders:['bush', 'rock', 'log']},
-  ];
-  const SPOTS = [[18, 50], [50, 44], [82, 50], [20, 97], [52, 99], [83, 96]];
-  const hideField = $('hideField'), hideProgress = $('hideProgress');
-  let hideRound = 0, found = 0, hideSpots = [], sceneDeck = null;
-  function startHide() {
-    mode = 'hide'; lastGame = 'hide'; clearTimers(); gameStarted('hide');
-    hideRound = 0;
-    show('hide');
-    nextHide();
-  }
-  function nextHide() {
-    if (!sceneDeck || !sceneDeck.length) sceneDeck = shuffle(HIDE_SCENES);
-    const sc = sceneDeck.pop();
-    setScene(sc.scene);
-    found = 0; busy = false;
-    makeDots(hideProgress, HIDE_FIND);
-    hideField.innerHTML = '';
-    const hiders = drawAnimals(HIDE_FIND);
-    const filled = shuffle([0, 1, 2, 3, 4, 5]).slice(0, HIDE_FIND);
-    hideSpots = SPOTS.map(([x, y], i) => {
-      const b = document.createElement('button');
-      b.className = 'spot appear';
-      b.style.left = (x + (Math.random() - .5) * 4) + '%'; b.style.top = (y + (Math.random() - .5) * 3) + '%';
-      b.style.animationDelay = (i * .07) + 's';
-      const who = filled.includes(i) ? hiders[filled.indexOf(i)] : null;
-      b.setAttribute('aria-label', '看看裡面');
-      const peeker = document.createElement('div'); peeker.className = 'peeker critter';
-      if (who) critter(peeker, who.k);
-      const hider = document.createElement('div'); hider.className = 'hider';
-      const type = pick(sc.hiders);
-      hider.innerHTML = HIDERS[type]();
-      b.append(peeker, hider);
-      const spot = {el: b, peeker, who, done: false};
-      b.addEventListener('pointerdown', ev => { ev.preventDefault(); tapSpot(spot); });
-      hideField.appendChild(b);
-      return spot;
-    });
-    later(() => say(`有${CN[HIDE_FIND]}隻小動物躲起來了，找找看！`), 500);
-    armPeek();
-  }
-  function armPeek() {
-    // every few seconds a hidden animal peeks out a little
-    later(function peek() {
-      if (screen !== 'hide' || resting) return;
-      const left = hideSpots.filter(s => s.who && !s.done);
-      if (!left.length) return;
-      const s = pick(left);
-      s.peeker.classList.add('peek'); restartAnim(s.el, 'spot', 'rustle'); sfx.giggle();
-      later(() => s.peeker.classList.remove('peek'), 900);
-      later(peek, 4200 + Math.random() * 1800);
-    }, 3000);
-  }
-  function tapSpot(s) {
-    if (busy || resting || screen !== 'hide') return;
-    restartAnim(s.el, 'spot', 'rustle');
-    if (s.done) { if (s.who) { mood(s.peeker, 'happy', 900); say(s.who.name); } return; }
-    if (!s.who) {
-      sfx.back();
-      const r = s.el.getBoundingClientRect();
-      burst(r.left + r.width / 2, r.top + r.height * .4, ['🦋', '🍃', '✨'], 3, r.width, r.height * .9);
-      say(pick(['這裡沒有喔', '空空的', '再找找看']));
-      return;
-    }
-    s.done = true; busy = true;
-    s.peeker.classList.remove('peek'); s.peeker.classList.add('found');
-    mood(s.peeker, 'happy');
-    sfx.happy();
-    const r = s.el.getBoundingClientRect();
-    burst(r.left + r.width / 2, r.top, ['⭐', '✨', '💛'], 8, r.width * 1.4, r.height);
-    fillDot(hideProgress, found, s.who.k);
-    found++;
-    if (found >= HIDE_FIND) {
-      say('全部找到了！好厲害');
-      later(() => hideSpots.forEach(x => x.who && restartAnim(x.peeker, 'peeker critter found', 'happy')), 600);
-      later(() => {
-        hideRound++;
-        if (hideRound >= HIDE_ROUNDS) { finishSet('hide'); return; }
-        nextHide();
-      }, 2600);
-    } else {
-      say(`找到${s.who.name}了！`);
-      later(() => { busy = false; }, 700);
-    }
-  }
-
   /* ================= TAKE ANIMALS HOME 送動物回家 ================= */
   const traveler = $('traveler'), cardA = $('cardA'), cardB = $('cardB'), sortProgress = $('sortProgress');
   const drawHomeAnimal = makeDeck(ANIMALS.filter(x => x.h));
@@ -1028,6 +920,7 @@
     if (c.dataset.hab !== traveling.h) {
       restartAnim(c, 'home-card', 'no'); restartAnim(traveler, 'traveler critter', 'no'); mood(traveler, 'no', 900);
       sfx.no(); travelerHome();
+      stats.sortWrong++; store.set('stats', stats);
       say(`${traveling.name}不住這裡喔`);
       armSortHint(); return;
     }
@@ -1044,6 +937,7 @@
     traveler.classList.add('going');
     traveler.style.transform = `translate(${bx + cr.left + cr.width / 2 - (tr.left + tr.width / 2)}px,${by + cr.bottom - cr.height * .25 - (tr.top + tr.height / 2)}px) scale(.3)`;
     (residents[a.h] = residents[a.h] || []).push(a.k);
+    stats.sortRight++; record('sort', a.a);
     later(() => {
       renderCard(c, a.h);
       c.className = 'home-card';
@@ -1063,7 +957,7 @@
 
   /* ================= MEMORY MATCH 配對翻牌 ================= */
   const matchGrid = $('matchGrid'), matchProgress = $('matchProgress');
-  let mcards = [], firstPick = null, pairsFound = 0, pairsTotal = 10, matchHint = null;
+  let mcards = [], firstPick = null, pairsFound = 0, pairsTotal = 10, matchHint = null, matchTries = 0;
   function layoutMatch() {
     const n = mcards.length; if (!n) return;
     const portrait = innerHeight > innerWidth;
@@ -1082,7 +976,7 @@
     mode = 'match'; lastGame = 'match'; clearTimers(); clearTimeout(matchHint); gameStarted('match');
     show('match');
     setScene(randomScene());
-    pairsTotal = +settings.pairs || 10; pairsFound = 0; firstPick = null; busy = true;
+    pairsTotal = +settings.pairs || 10; pairsFound = 0; firstPick = null; busy = true; matchTries = 0;
     makeDots(matchProgress, pairsTotal);
     const animals = drawAnimals(pairsTotal);
     const deck = shuffle([...animals, ...animals]);
@@ -1127,6 +1021,7 @@
     mood(c.cr, 'happy', 700);
     if (!firstPick) { firstPick = c; say(c.a.name); armMatchHint(); return; }
     const a = firstPick, b = c; firstPick = null; busy = true;
+    matchTries++;
     if (a.a === b.a) {
       later(() => {
         [a, b].forEach(x => { x.done = true; x.el.className = 'mcard up matched'; mood(x.cr, 'happy'); });
@@ -1136,7 +1031,11 @@
         say(`兩隻${a.a.name}！`);
         fillDot(matchProgress, pairsFound, a.a.k);
         pairsFound++;
+        record('match', a.a.a);
         if (pairsFound >= pairsTotal) {
+          const ms = (stats.matchSizes[pairsTotal] = stats.matchSizes[pairsTotal] || {done: 0, best: 0});
+          ms.done++; if (!ms.best || matchTries < ms.best) ms.best = matchTries;
+          store.set('stats', stats);
           later(() => { say('全部配對成功！好厲害'); mcards.forEach((x, i) => setTimeout(() => restartAnim(x.el, 'mcard up matched', 'wiggle'), i * 40)); }, 900);
           later(() => finishSet('match'), 3000);
         } else { busy = false; armMatchHint(); }
@@ -1235,6 +1134,7 @@
   }
   function openBook() {
     mode = 'book';
+    stats.bookOpens++; store.set('stats', stats);
     $('book').classList.remove('placing');
     renderBook(null);
     show('book');
@@ -1340,7 +1240,7 @@
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') store.set('stats', stats); });
   setInterval(() => {
     const now = performance.now(), dt = now - tick; tick = now;
-    const playing = ['feed', 'bath', 'hide', 'sort', 'match'].includes(screen) && $('reward').classList.contains('hidden') && !resting && document.visibilityState === 'visible';
+    const playing = ['feed', 'bath', 'sort', 'match'].includes(screen) && $('reward').classList.contains('hidden') && !resting && document.visibilityState === 'visible';
     if (playing) {
       const d = Math.min(dt, 2000);
       playMs += d;
@@ -1350,6 +1250,8 @@
       if (++statTick % 15 === 0) {            // save every ~15 s
         const keep = Object.keys(stats.daily).sort().slice(-30);
         stats.daily = Object.fromEntries(keep.map(x => [x, stats.daily[x]]));
+        const keepG = Object.keys(stats.dailyGames).sort().slice(-30);
+        stats.dailyGames = Object.fromEntries(keepG.map(x => [x, stats.dailyGames[x]]));
         store.set('stats', stats);
       }
     }
@@ -1375,7 +1277,7 @@
   }
   holdButton($('holdBtn'), $('restRing'), 3000, () => {
     resting = false; playMs = 0; $('rest').classList.add('hidden');
-    if (screen === 'feed') armFeedIdle(); else if (screen === 'bath') armBathIdle(); else if (screen === 'hide') armPeek(); else if (screen === 'sort') armSortHint(); else if (screen === 'match') armMatchHint();
+    if (screen === 'feed') armFeedIdle(); else if (screen === 'bath') armBathIdle(); else if (screen === 'sort') armSortHint(); else if (screen === 'match') armMatchHint();
   });
 
   /* ================= settings ================= */
@@ -1385,7 +1287,14 @@
     document.querySelectorAll('[data-pairs]').forEach(b => b.setAttribute('aria-pressed', String(+b.dataset.pairs === +settings.pairs)));
     document.querySelectorAll('[data-bg]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.bg === settings.bg)));
   }
-  const GAME_INFO = {feed: ['🐵', '餵小動物'], bath: ['🛁', '幫動物洗澡'], hide: ['🌳', '躲貓貓'], sort: ['🏠', '送動物回家'], match: ['🃏', '配對翻牌']};
+  const GAME_INFO = {feed: ['🐵', '餵小動物'], bath: ['🛁', '幫動物洗澡'], sort: ['🏠', '送動物回家'], match: ['🃏', '配對翻牌']};
+  const FEED_LEVELS = {1: '找食物', 2: '數數看', 3: '認顏色', 4: '分給兩隻'};
+  const GAME_EXTRA = {
+    feed: () => Object.entries(FEED_LEVELS).map(([k, n]) => `${n} <b>${stats.feedLevels[k] || 0}</b> 題`),
+    sort: () => [`送對 <b>${stats.sortRight}</b> 次`, `送錯 <b>${stats.sortWrong}</b> 次`],
+    match: () => Object.entries(stats.matchSizes).sort((x, y) => x[0] - y[0])
+      .map(([n, m]) => `${n} 對完成 <b>${m.done}</b> 次（最快翻 ${m.best} 次）`),
+  };
   function fmtTime(ms) {
     const m = Math.round(ms / 60000);
     if (m < 1) return ms > 0 ? '不到 1 分' : '0 分';
@@ -1395,8 +1304,8 @@
     const box = $('statsBox');
     const totalStarted = Object.values(stats.games).reduce((n, g) => n + g.started, 0);
     const totalDone = Object.values(stats.games).reduce((n, g) => n + g.done, 0);
-    const tries = stats.feedRight + stats.feedWrong;
-    const rate = tries ? Math.round(stats.feedRight / tries * 100) + '%' : '—';
+    const pct = (ok, bad) => ok + bad ? Math.round(ok / (ok + bad) * 100) + '%' : '—';
+    const rate = pct(stats.feedRight, stats.feedWrong);
     const today = dayKey();
     const days = Array.from({length: 7}, (_, i) => { const d = new Date(); d.setDate(d.getDate() - (6 - i)); return d; });
     const maxDay = Math.max(1, ...days.map(d => stats.daily[dayKey(d)] || 0));
@@ -1409,6 +1318,7 @@
       <div><b>${stats.opens} 次</b><span>打開 App</span></div>
       <div><b>${Object.keys(stickers).length} / ${STICKERS.length}</b><span>收集的貼紙</span></div>
       <div><b>${rate}</b><span>餵食答對率</span></div>
+      <div><b>${pct(stats.sortRight, stats.sortWrong)}</b><span>送回家答對率</span></div>
       <div><b>${stats.firstDay ? stats.firstDay.slice(5).replace('-', '/') : '—'}</b><span>開始玩的日子</span></div>
     </div>
     <p class="sub-h">最近 7 天（分鐘）</p>
@@ -1416,19 +1326,24 @@
       return `<div class="col${k === today ? ' today' : ''}"><span class="v">${Math.round(v / 60000)}</span><div class="bar" style="height:${Math.max(3, v / maxDay * 70)}px"></div><span>${k === today ? '今天' : WD[d.getDay()]}</span></div>`; }).join('')}</div>
     <p class="sub-h">各個遊戲</p>
     <div class="games">${Object.entries(GAME_INFO).map(([g, [ic, nm]]) => { const s = stats.games[g] || {started: 0, done: 0, ms: 0};
-      return `<div class="row"><span class="e">${ic}</span><span>${nm}<br>玩 <b>${s.started}</b> 次・完成 <b>${s.done}</b> 次・${fmtTime(s.ms)}</span></div>`; }).join('')}</div>
+      const todayN = (stats.dailyGames[today] || {})[g] || 0;
+      const more = [`今天 <b>${todayN}</b> 次`, s.last ? `上次 ${s.last.slice(5).replace('-', '/')}` : '還沒玩過', ...(GAME_EXTRA[g] ? GAME_EXTRA[g]() : [])];
+      return `<div class="row"><span class="e">${ic}</span><span>${nm}<br>玩 <b>${s.started}</b> 次・完成 <b>${s.done}</b> 次・${fmtTime(s.ms)}<small>${more.join('・')}</small></span></div>`; }).join('')}
+      <div class="row"><span class="e">📒</span><span>貼紙簿<br>打開 <b>${stats.bookOpens}</b> 次・收集 <b>${Object.keys(stickers).length}</b> 張</span></div></div>
     <p class="sub-h">每隻動物</p>
     <div class="stats" id="statsList"></div>`;
     box.innerHTML = html;
     const list = $('statsList');
     const names = {};
     ANIMALS.forEach(x => names[x.a] = x.name);
-    const all = [...new Set([...Object.keys(stats.feed), ...Object.keys(stats.bath)])]
-      .sort((x, y) => ((stats.feed[y] || 0) + (stats.bath[y] || 0)) - ((stats.feed[x] || 0) + (stats.bath[x] || 0)));
-    if (!all.length) { list.innerHTML = '<p class="stats-empty">還沒有紀錄，玩過之後這裡會顯示每隻動物被餵和洗了幾次。</p>'; return; }
+    const KINDS = [['feed', '餵'], ['bath', '洗'], ['sort', '送回家'], ['match', '配對']];
+    const total = k => KINDS.reduce((n, [kind]) => n + (stats[kind][k] || 0), 0);
+    const all = [...new Set(KINDS.flatMap(([kind]) => Object.keys(stats[kind])))].sort((x, y) => total(y) - total(x));
+    if (!all.length) { list.innerHTML = '<p class="stats-empty">還沒有紀錄，玩過之後這裡會顯示每隻動物被餵、洗、送回家和配對了幾次。</p>'; return; }
     all.forEach(k => {
       const d = document.createElement('div'); d.className = 'stat';
-      d.innerHTML = `<span class="e">${k}</span><span class="nums">${names[k] || ''}<br>餵 <b>${stats.feed[k] || 0}</b> 次・洗 <b>${stats.bath[k] || 0}</b> 次</span>`;
+      const parts = KINDS.filter(([kind]) => stats[kind][k]).map(([kind, nm]) => `${nm} <b>${stats[kind][k]}</b> 次`);
+      d.innerHTML = `<span class="e">${k}</span><span class="nums">${names[k] || ''}<br>${parts.join('・')}</span>`;
       list.appendChild(d);
     });
   }

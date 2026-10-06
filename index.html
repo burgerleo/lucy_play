@@ -29,12 +29,12 @@
   <div class="tiles">
     <button class="tile e" id="goFeed" aria-label="餵小動物"><span class="tile-art" data-art="monkey"></span><span class="sub">🍌</span></button>
     <button class="tile e" id="goBath" aria-label="幫動物洗澡"><span class="tile-art" data-art="pig"></span><span class="sub">🫧</span></button>
-    <button class="tile e" id="goHide" aria-label="躲貓貓"><span class="tile-art" data-art="rabbit"></span><span class="sub">🌳</span></button>
     <button class="tile e" id="goSort" aria-label="送動物回家"><span class="tile-art" data-art="penguin"></span><span class="sub">🏠</span></button>
     <button class="tile e" id="goMatch" aria-label="配對翻牌"><span class="tile-art" data-art="fox"></span><span class="sub">🃏</span></button>
     <button class="tile e" id="goBook" aria-label="貼紙簿">📒<span class="badge" id="stickerCount">0</span></button>
   </div>
   <p class="note e" id="soundNote">記得打開聲音 🔊</p>
+  <p class="version" id="version" aria-hidden="true">__BUILD__</p>
 </section>
 
 <!-- FEED -->
@@ -72,16 +72,6 @@
       <div class="tub"><div class="water"></div><div class="tub-rim"></div></div>
     </div>
   </div>
-</section>
-
-<!-- HIDE & SEEK -->
-<section class="screen hidden" id="hide">
-  <div class="topbar">
-    <button class="round-btn e" data-home aria-label="回主畫面">🏠</button>
-    <div class="progress" id="hideProgress" aria-hidden="true"></div>
-    <div class="spacer"></div>
-  </div>
-  <div class="hide-field" id="hideField"></div>
 </section>
 
 <!-- TAKE ANIMALS HOME -->
