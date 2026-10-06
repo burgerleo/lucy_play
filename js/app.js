@@ -76,17 +76,25 @@
     set(k, v) { try { localStorage.setItem('feed-animals:' + k, JSON.stringify(v)); } catch (e) {} },
   };
   const savedSettings = store.get('settings', {});
-  let settings = Object.assign({levels: ['1'], rest: 10, pairs: 10}, savedSettings);
+  let settings = Object.assign({levels: ['1'], rest: 10, pairs: 10, bg: 'random'}, savedSettings);
   if (!Array.isArray(savedSettings.levels) || !savedSettings.levels.length) {
     settings.levels = settings.level === 'mix' ? ['1', '2', '3', '4'] : [String(settings.level || '1')];
   }
   delete settings.level;
   let stickers = store.get('stickers', {});
-  let stats = Object.assign({feed: {}, bath: {}}, store.get('stats', {}));
+  const freshStats = () => ({feed: {}, bath: {}, games: {}, playMs: 0, daily: {}, opens: 0, firstDay: null, feedRight: 0, feedWrong: 0});
+  let stats = Object.assign(freshStats(), store.get('stats', {}));
+  const dayKey = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  stats.opens++;
+  if (!stats.firstDay) stats.firstDay = dayKey();
+  store.set('stats', stats);
   function record(kind, emoji) {
     stats[kind][emoji] = (stats[kind][emoji] || 0) + 1;
     store.set('stats', stats);
   }
+  function gameStat(g) { return (stats.games[g] = stats.games[g] || {started: 0, done: 0, ms: 0}); }
+  function gameStarted(g) { gameStat(g).started++; store.set('stats', stats); }
+  function gameDone(g) { if (g) { gameStat(g).done++; store.set('stats', stats); } }
 
   /* ================= sound ================= */
   let ctx = null;
@@ -195,10 +203,8 @@
     SCREENS.forEach(s => $(s).classList.toggle('hidden', s !== name));
     if (name !== 'book') $('book').classList.remove('placing');
     screen = name;
-    if (name === 'home') setScene('meadow');
-    else if (name === 'bath') setScene('bathroom');
-    else if (name === 'book') setScene('night');
-    else if (name === 'sort') setScene('meadow');
+    if (name === 'bath') setScene('bathroom');
+    else if (name === 'home' || name === 'book' || name === 'sort') setScene(randomScene());
   }
   function goHome() {
     clearTimers(); stopFeedIdle(); stopBathIdle();
@@ -268,13 +274,16 @@
   }
   const drawAnimals = makeDeck(ANIMALS);
   const drawBath = makeDeck(BATH_ANIMALS);
+  const OUTDOOR = ['meadow', 'farm', 'forest', 'beach', 'snow', 'savanna', 'night', 'zoo', 'pond', 'underwater', 'jungle', 'garden'];
+  const drawScene = makeDeck(OUTDOOR);
+  const randomScene = () => drawScene(1)[0];
 
   /* ================= FEED ================= */
   const animalsEl = $('animals'), matEl = $('mat'), feedProgress = $('feedProgress');
   let round = 0, eaters = [], drag = null, feedIdle = [];
 
   function startFeed() {
-    mode = 'feed'; lastGame = 'feed'; clearTimers();
+    mode = 'feed'; lastGame = 'feed'; clearTimers(); gameStarted('feed');
     round = 0;
     makeDots(feedProgress, FEED_ROUNDS);
     show('feed');
@@ -317,7 +326,7 @@
 
   function nextRound() {
     const r = buildRound();
-    setScene(sceneFor(r.eaters[0].a));
+    setScene(settings.bg === 'habitat' ? sceneFor(r.eaters[0].a) : randomScene());
     animalsEl.innerHTML = '';
     animalsEl.classList.toggle('duo', r.eaters.length > 1);
     eaters = r.eaters.map((e, i) => {
@@ -461,6 +470,7 @@
 
   function eatFood(eater, d) {
     busy = true; stopFeedIdle();
+    stats.feedRight++;
     const m = mouthOf(eater);
     d.el.classList.add('eaten');
     d.el.style.transform = `translate(${m.x - d.cx}px,${m.y - d.cy}px) scale(.2)`;
@@ -497,6 +507,7 @@
 
   function rejectFood(eater, d) {
     busy = true;
+    stats.feedWrong++; store.set('stats', stats);
     restartAnim(eater.el, 'animal critter', 'no'); sfx.no(); mood(eater.el, 'no', 900);
     foodHome(d.el);
     if (eater.got >= eater.need) say('我吃飽了');
@@ -514,7 +525,7 @@
   let lastSfx = 0, lastCheck = 0, lastFx = 0, lastTickle = 0, lastTalk = 0, poppedLeft = 0;
 
   function startBath() {
-    mode = 'bath'; lastGame = 'bath'; clearTimers();
+    mode = 'bath'; lastGame = 'bath'; clearTimers(); gameStarted('bath');
     bathRound = 0;
     bathQueue = drawBath(BATH_ROUNDS);
     makeDots(bathProgress, BATH_ROUNDS);
@@ -838,6 +849,10 @@
     bucket: () => `<svg viewBox="0 0 200 170"><path d="M34 62 L50 168 H150 L166 62 Z" fill="#5BC0F0" stroke="${O_}" stroke-width="5" stroke-linejoin="round"/><path d="M34 62 Q100 0 166 62" fill="none" stroke="${O_}" stroke-width="5"/><rect x="28" y="54" width="144" height="20" rx="8" fill="#FFE07A" stroke="${O_}" stroke-width="5"/><circle cx="100" cy="118" r="14" fill="#FFE07A" stroke="${O_}" stroke-width="4"/></svg>`,
     snow: () => `<svg viewBox="0 0 200 170"><path d="M8 168 Q8 66 70 52 Q110 22 152 52 Q196 74 192 168 Z" fill="#fff" stroke="#9CC6E0" stroke-width="5" stroke-linejoin="round"/><path d="M50 120 Q70 108 92 116 M120 100 Q140 92 160 104" stroke="#D6E9F5" stroke-width="6" fill="none" stroke-linecap="round"/></svg>`,
     snowman: () => `<svg viewBox="0 0 200 170"><g stroke="#9CC6E0" stroke-width="5"><circle cx="100" cy="122" r="58" fill="#fff"/><circle cx="100" cy="46" r="38" fill="#fff"/></g><circle cx="88" cy="40" r="5" fill="${O_}"/><circle cx="112" cy="40" r="5" fill="${O_}"/><path d="M100 50 L124 56 L100 60 Z" fill="#FF9F3D"/><path d="M66 78 Q100 92 134 78 L138 92 Q100 106 62 92 Z" fill="#FF6B8B" stroke="${O_}" stroke-width="3"/><circle cx="100" cy="116" r="5" fill="${O_}"/><circle cx="100" cy="138" r="5" fill="${O_}"/></svg>`,
+    seaRock: () => HIDERS.rock('#7FA3C2'),
+    coral: () => `<svg viewBox="0 0 200 170"><g fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M100 168 V70 M100 110 Q60 100 52 40 M100 96 Q140 84 150 30 M52 70 Q30 60 28 30 M150 70 Q174 66 178 40 M70 168 Q60 130 30 120 M130 168 Q144 130 172 124" stroke="${O_}" stroke-width="34"/><path d="M100 168 V70 M100 110 Q60 100 52 40 M100 96 Q140 84 150 30 M52 70 Q30 60 28 30 M150 70 Q174 66 178 40 M70 168 Q60 130 30 120 M130 168 Q144 130 172 124" stroke="#FF8FA3" stroke-width="26"/></g><rect x="20" y="146" width="160" height="22" rx="11" fill="#F2D59A" stroke="${O_}" stroke-width="4"/></svg>`,
+    chest: () => `<svg viewBox="0 0 200 170"><g stroke="${O_}" stroke-width="5" stroke-linejoin="round"><path d="M22 70 Q22 26 100 26 Q178 26 178 70 Z" fill="#B97A3E"/><rect x="22" y="70" width="156" height="98" rx="8" fill="#C98A55"/><path d="M22 70 H178" stroke-width="7"/><path d="M60 26 V168 M140 26 V168" stroke="#FFC93C" stroke-width="10"/><rect x="86" y="60" width="28" height="32" rx="6" fill="#FFC93C"/></g><circle cx="100" cy="78" r="4" fill="${O_}"/></svg>`,
+    leaves: () => `<svg viewBox="0 0 200 170"><g stroke="#2F6B3E" stroke-width="5" stroke-linejoin="round">${[[-30, 100, 168, '#3E8F4E'], [-80, 40, 168, '#5DB86A'], [-140, 160, 168, '#4FA35E'], [-110, 100, 150, '#6CC277']].map(([r, x, y, c]) => `<path transform="translate(${x} ${y}) rotate(${r})" d="M0 0 Q50 -60 140 -16 Q70 36 0 0 Z" fill="${c}"/>`).join('')}</g></svg>`,
     grass: () => `<svg viewBox="0 0 200 170"><g fill="#C9A044" stroke="${O_}" stroke-width="4" stroke-linejoin="round">${[20, 46, 72, 98, 124, 150].map((x, i) => `<path d="M${x} 168 Q${x + 4} ${80 - (i % 2) * 30} ${x + 22} ${40 + (i % 3) * 14} Q${x + 18} ${100} ${x + 32} 168 Z"/>`).join('')}</g><rect x="10" y="130" width="182" height="38" rx="18" fill="#D8B45A" stroke="${O_}" stroke-width="4"/></svg>`,
   };
   const HIDE_SCENES = [
@@ -847,12 +862,18 @@
     {scene:'beach',   hiders:['sandcastle', 'bucket', 'rock']},
     {scene:'snow',    hiders:['snow', 'snowman', 'snow']},
     {scene:'savanna', hiders:['grass', 'rock', 'bush']},
+    {scene:'zoo',     hiders:['crate', 'bush', 'rock']},
+    {scene:'pond',    hiders:['bush', 'rock', 'log']},
+    {scene:'underwater', hiders:['coral', 'chest', 'seaRock']},
+    {scene:'jungle',  hiders:['leaves', 'bush', 'log']},
+    {scene:'garden',  hiders:['flowers', 'bush', 'crate']},
+    {scene:'night',   hiders:['bush', 'rock', 'log']},
   ];
   const SPOTS = [[18, 50], [50, 44], [82, 50], [20, 97], [52, 99], [83, 96]];
   const hideField = $('hideField'), hideProgress = $('hideProgress');
   let hideRound = 0, found = 0, hideSpots = [], sceneDeck = null;
   function startHide() {
-    mode = 'hide'; lastGame = 'hide'; clearTimers();
+    mode = 'hide'; lastGame = 'hide'; clearTimers(); gameStarted('hide');
     hideRound = 0;
     show('hide');
     nextHide();
@@ -937,7 +958,7 @@
   const drawHomeAnimal = makeDeck(ANIMALS.filter(x => x.h));
   let sortRound = 0, residents = {}, traveling = null, tdrag = null, sortHint = null, cards = [];
   function startSort() {
-    mode = 'sort'; lastGame = 'sort'; clearTimers();
+    mode = 'sort'; lastGame = 'sort'; clearTimers(); gameStarted('sort');
     sortRound = 0; residents = {};
     makeDots(sortProgress, SORT_ROUNDS);
     show('sort');
@@ -1058,9 +1079,9 @@
     matchGrid.style.gridAutoRows = Math.round(w * 1.1) + 'px';
   }
   function startMatch() {
-    mode = 'match'; lastGame = 'match'; clearTimers(); clearTimeout(matchHint);
+    mode = 'match'; lastGame = 'match'; clearTimers(); clearTimeout(matchHint); gameStarted('match');
     show('match');
-    setScene(pick(['meadow', 'forest', 'beach', 'farm', 'savanna', 'snow']));
+    setScene(randomScene());
     pairsTotal = +settings.pairs || 10; pairsFound = 0; firstPick = null; busy = true;
     makeDots(matchProgress, pairsTotal);
     const animals = drawAnimals(pairsTotal);
@@ -1137,7 +1158,8 @@
     const missing = STICKERS.filter(s => !stickers[s[0]]);
     return missing.length ? pick(missing) : pick(STICKERS);
   }
-  function finishSet() {
+  function finishSet(which) {
+    gameDone(which);
     busy = true; stopFeedIdle(); stopBathIdle();
     const cards = $('cards'); cards.innerHTML = '';
     cards.className = 'cards cards-enter';
@@ -1313,11 +1335,24 @@
   }
 
   /* ================= rest reminder ================= */
-  let playMs = 0, resting = false, tick = performance.now();
+  let playMs = 0, resting = false, tick = performance.now(), statTick = 0;
+  addEventListener('pagehide', () => store.set('stats', stats));
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') store.set('stats', stats); });
   setInterval(() => {
     const now = performance.now(), dt = now - tick; tick = now;
     const playing = ['feed', 'bath', 'hide', 'sort', 'match'].includes(screen) && $('reward').classList.contains('hidden') && !resting && document.visibilityState === 'visible';
-    if (playing) playMs += Math.min(dt, 2000);
+    if (playing) {
+      const d = Math.min(dt, 2000);
+      playMs += d;
+      stats.playMs += d;
+      const k = dayKey(); stats.daily[k] = (stats.daily[k] || 0) + d;
+      gameStat(screen).ms += d;
+      if (++statTick % 15 === 0) {            // save every ~15 s
+        const keep = Object.keys(stats.daily).sort().slice(-30);
+        stats.daily = Object.fromEntries(keep.map(x => [x, stats.daily[x]]));
+        store.set('stats', stats);
+      }
+    }
     const limit = (+settings.rest) * 60 * 1000;
     if (limit && playing && !busy && activeId === null && playMs >= limit) {
       resting = true; stopFeedIdle(); stopBathIdle();
@@ -1348,17 +1383,52 @@
     document.querySelectorAll('[data-level]').forEach(b => b.setAttribute('aria-pressed', String(settings.levels.includes(b.dataset.level))));
     document.querySelectorAll('[data-rest]').forEach(b => b.setAttribute('aria-pressed', String(+b.dataset.rest === +settings.rest)));
     document.querySelectorAll('[data-pairs]').forEach(b => b.setAttribute('aria-pressed', String(+b.dataset.pairs === +settings.pairs)));
+    document.querySelectorAll('[data-bg]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.bg === settings.bg)));
+  }
+  const GAME_INFO = {feed: ['🐵', '餵小動物'], bath: ['🛁', '幫動物洗澡'], hide: ['🌳', '躲貓貓'], sort: ['🏠', '送動物回家'], match: ['🃏', '配對翻牌']};
+  function fmtTime(ms) {
+    const m = Math.round(ms / 60000);
+    if (m < 1) return ms > 0 ? '不到 1 分' : '0 分';
+    return m < 60 ? `${m} 分` : `${Math.floor(m / 60)} 小時 ${m % 60} 分`;
   }
   function renderStats() {
-    const list = $('statsList'); list.innerHTML = '';
+    const box = $('statsBox');
+    const totalStarted = Object.values(stats.games).reduce((n, g) => n + g.started, 0);
+    const totalDone = Object.values(stats.games).reduce((n, g) => n + g.done, 0);
+    const tries = stats.feedRight + stats.feedWrong;
+    const rate = tries ? Math.round(stats.feedRight / tries * 100) + '%' : '—';
+    const today = dayKey();
+    const days = Array.from({length: 7}, (_, i) => { const d = new Date(); d.setDate(d.getDate() - (6 - i)); return d; });
+    const maxDay = Math.max(1, ...days.map(d => stats.daily[dayKey(d)] || 0));
+    const WD = '日一二三四五六';
+    let html = `<div class="sum">
+      <div><b>${fmtTime(stats.playMs)}</b><span>總共玩了</span></div>
+      <div><b>${fmtTime(stats.daily[today] || 0)}</b><span>今天玩了</span></div>
+      <div><b>${totalStarted} 次</b><span>開始遊戲</span></div>
+      <div><b>${totalDone} 次</b><span>完成遊戲</span></div>
+      <div><b>${stats.opens} 次</b><span>打開 App</span></div>
+      <div><b>${Object.keys(stickers).length} / ${STICKERS.length}</b><span>收集的貼紙</span></div>
+      <div><b>${rate}</b><span>餵食答對率</span></div>
+      <div><b>${stats.firstDay ? stats.firstDay.slice(5).replace('-', '/') : '—'}</b><span>開始玩的日子</span></div>
+    </div>
+    <p class="sub-h">最近 7 天（分鐘）</p>
+    <div class="week">${days.map(d => { const k = dayKey(d), v = stats.daily[k] || 0;
+      return `<div class="col${k === today ? ' today' : ''}"><span class="v">${Math.round(v / 60000)}</span><div class="bar" style="height:${Math.max(3, v / maxDay * 70)}px"></div><span>${k === today ? '今天' : WD[d.getDay()]}</span></div>`; }).join('')}</div>
+    <p class="sub-h">各個遊戲</p>
+    <div class="games">${Object.entries(GAME_INFO).map(([g, [ic, nm]]) => { const s = stats.games[g] || {started: 0, done: 0, ms: 0};
+      return `<div class="row"><span class="e">${ic}</span><span>${nm}<br>玩 <b>${s.started}</b> 次・完成 <b>${s.done}</b> 次・${fmtTime(s.ms)}</span></div>`; }).join('')}</div>
+    <p class="sub-h">每隻動物</p>
+    <div class="stats" id="statsList"></div>`;
+    box.innerHTML = html;
+    const list = $('statsList');
     const names = {};
-    ANIMALS.concat(BATH_ANIMALS).forEach(x => names[x.a] = x.name);
+    ANIMALS.forEach(x => names[x.a] = x.name);
     const all = [...new Set([...Object.keys(stats.feed), ...Object.keys(stats.bath)])]
-      .sort((a, b) => ((stats.feed[b] || 0) + (stats.bath[b] || 0)) - ((stats.feed[a] || 0) + (stats.bath[a] || 0)));
+      .sort((x, y) => ((stats.feed[y] || 0) + (stats.bath[y] || 0)) - ((stats.feed[x] || 0) + (stats.bath[x] || 0)));
     if (!all.length) { list.innerHTML = '<p class="stats-empty">還沒有紀錄，玩過之後這裡會顯示每隻動物被餵和洗了幾次。</p>'; return; }
-    all.forEach(a => {
+    all.forEach(k => {
       const d = document.createElement('div'); d.className = 'stat';
-      d.innerHTML = `<span class="e">${a}</span><span class="nums">${names[a] || ''}<br>餵 <b>${stats.feed[a] || 0}</b> 次・洗 <b>${stats.bath[a] || 0}</b> 次</span>`;
+      d.innerHTML = `<span class="e">${k}</span><span class="nums">${names[k] || ''}<br>餵 <b>${stats.feed[k] || 0}</b> 次・洗 <b>${stats.bath[k] || 0}</b> 次</span>`;
       list.appendChild(d);
     });
   }
@@ -1371,6 +1441,7 @@
   }));
   document.querySelectorAll('[data-rest]').forEach(b => b.addEventListener('click', () => { settings.rest = +b.dataset.rest; store.set('settings', settings); syncChoices(); }));
   document.querySelectorAll('[data-pairs]').forEach(b => b.addEventListener('click', () => { settings.pairs = +b.dataset.pairs; store.set('settings', settings); syncChoices(); }));
+  document.querySelectorAll('[data-bg]').forEach(b => b.addEventListener('click', () => { settings.bg = b.dataset.bg; store.set('settings', settings); syncChoices(); }));
   function confirmButton(btn, label, onClear) {
     let armed = false;
     btn.addEventListener('click', () => {
@@ -1380,7 +1451,7 @@
     btn.reset = () => { armed = false; btn.textContent = label; btn.classList.remove('danger'); };
   }
   confirmButton($('clearBtn'), '清除貼紙簿', () => { stickers = {}; store.set('stickers', stickers); $('stickerCount').textContent = '0'; });
-  confirmButton($('clearStatsBtn'), '清除紀錄', () => { stats = {feed: {}, bath: {}}; store.set('stats', stats); renderStats(); });
+  confirmButton($('clearStatsBtn'), '清除紀錄', () => { stats = freshStats(); stats.firstDay = dayKey(); store.set('stats', stats); renderStats(); });
   $('closeSet').addEventListener('click', () => {
     $('settings').classList.add('hidden');
     $('clearBtn').reset(); $('clearStatsBtn').reset();
