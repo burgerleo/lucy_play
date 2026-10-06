@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+<title>小芽遊戲屋</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#8FD6F5">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="小芽遊戲屋">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@500;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="scenery" aria-hidden="true"><div class="bg" id="bgA"></div><div class="bg" id="bgB"></div></div>
+
+<!-- HOME -->
+<section class="screen" id="home">
+  <button class="gear" id="gearBtn" aria-label="大人設定（按住 2 秒）">
+    <svg viewBox="0 0 40 40" aria-hidden="true"><circle class="ring" id="gearRing" cx="20" cy="20" r="18"/></svg>
+    <span class="icon e">⚙️</span>
+  </button>
+  <div class="tiles">
+    <button class="tile e" id="goFeed" aria-label="餵小動物"><span class="tile-art" data-art="monkey"></span><span class="sub">🍌</span></button>
+    <button class="tile e" id="goBath" aria-label="幫動物洗澡"><span class="tile-art" data-art="pig"></span><span class="sub">🫧</span></button>
+    <button class="tile e" id="goHide" aria-label="躲貓貓"><span class="tile-art" data-art="rabbit"></span><span class="sub">🌳</span></button>
+    <button class="tile e" id="goSort" aria-label="送動物回家"><span class="tile-art" data-art="penguin"></span><span class="sub">🏠</span></button>
+    <button class="tile e" id="goMatch" aria-label="配對翻牌"><span class="tile-art" data-art="fox"></span><span class="sub">🃏</span></button>
+    <button class="tile e" id="goBook" aria-label="貼紙簿">📒<span class="badge" id="stickerCount">0</span></button>
+  </div>
+  <p class="note e" id="soundNote">記得打開聲音 🔊</p>
+</section>
+
+<!-- FEED -->
+<section class="screen hidden" id="feed">
+  <div class="topbar">
+    <button class="round-btn e" data-home aria-label="回主畫面">🏠</button>
+    <div class="progress" id="feedProgress" aria-hidden="true"></div>
+    <div class="spacer"></div>
+  </div>
+  <div class="scene">
+    <div class="animals" id="animals"></div>
+    <div class="mat" id="mat"></div>
+  </div>
+</section>
+
+<!-- BATH -->
+<section class="screen hidden" id="bath">
+  <div class="topbar">
+    <button class="round-btn e" data-home aria-label="回主畫面">🏠</button>
+    <div class="progress" id="bathProgress" aria-hidden="true"></div>
+    <div class="spacer"></div>
+  </div>
+  <div class="bath-stage" id="bathStage">
+    <div class="tool-badge e" id="toolBadge" aria-hidden="true">🧽</div>
+    <div class="tub-wrap">
+      <div class="bather" id="bather">
+        <div class="bath-body" id="bathBody">
+          <div class="bath-animal e" id="bathAnimal" role="img"></div>
+          <canvas class="layer" id="mudCv"></canvas>
+          <canvas class="layer" id="foamCv"></canvas>
+          <div id="touchPad"></div>
+          <div class="giggle e" id="giggle">😆</div>
+        </div>
+      </div>
+      <div class="tub"><div class="water"></div><div class="tub-rim"></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- HIDE & SEEK -->
+<section class="screen hidden" id="hide">
+  <div class="topbar">
+    <button class="round-btn e" data-home aria-label="回主畫面">🏠</button>
+    <div class="progress" id="hideProgress" aria-hidden="true"></div>
+    <div class="spacer"></div>
+  </div>
+  <div class="hide-field" id="hideField"></div>
+</section>
+
+<!-- TAKE ANIMALS HOME -->
+<section class="screen hidden" id="sort">
+  <div class="topbar">
+    <button class="round-btn e" data-home aria-label="回主畫面">🏠</button>
+    <div class="progress" id="sortProgress" aria-hidden="true"></div>
+    <div class="spacer"></div>
+  </div>
+  <div class="sort-field" id="sortField">
+    <div class="home-card" id="cardA"></div>
+    <div class="traveler-spot"><div class="traveler critter" id="traveler"></div></div>
+    <div class="home-card" id="cardB"></div>
+  </div>
+</section>
+
+<!-- MEMORY MATCH -->
+<section class="screen hidden" id="match">
+  <div class="topbar">
+    <button class="round-btn e" data-home aria-label="回主畫面">🏠</button>
+    <div class="progress" id="matchProgress" aria-hidden="true"></div>
+    <div class="spacer"></div>
+  </div>
+  <div class="match-grid" id="matchGrid"></div>
+</section>
+
+<!-- STICKER BOOK -->
+<section class="screen hidden" id="book">
+  <div class="topbar">
+    <button class="round-btn e" data-home aria-label="回主畫面">🏠</button>
+    <div></div><div class="spacer"></div>
+  </div>
+  <div class="book-page" id="bookPage"></div>
+  <div class="tray" id="tray">
+    <div class="float-sticker e hidden" id="floatSticker"></div>
+    <div class="btn-row hidden" id="afterPlace">
+      <button class="big-btn alt e" data-home aria-label="回主畫面">🏠</button>
+      <button class="big-btn" id="againBtn" aria-label="再玩一次">
+        <svg viewBox="0 0 24 24"><path d="M12 5a7 7 0 1 1-6.6 4.7" stroke="#fff" stroke-width="3" fill="none" stroke-linecap="round"/><path d="M4 4.5v5.5h5.5" stroke="#fff" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+    </div>
+  </div>
+</section>
+
+<div class="fx" id="fx"></div>
+<div class="stream" id="stream"></div>
+<div class="cursor e" id="cursor">🧽</div>
+
+<!-- REWARD -->
+<section class="overlay hidden" id="reward">
+  <canvas id="confetti"></canvas>
+  <div class="cards" id="cards"></div>
+</section>
+
+<!-- REST -->
+<section class="overlay hidden" id="rest">
+  <div class="moon e" aria-hidden="true">🌙</div>
+  <p class="rest-text">休息一下囉</p>
+  <button class="hold-btn" id="holdBtn">
+    <svg viewBox="0 0 40 40" aria-hidden="true"><circle class="ring-bg" cx="20" cy="20" r="18"/><circle class="ring" id="restRing" cx="20" cy="20" r="18"/></svg>
+    大人按住 3 秒繼續
+  </button>
+</section>
+
+<!-- SETTINGS -->
+<section class="overlay hidden" id="settings">
+  <div class="panel" role="dialog" aria-labelledby="setTitle">
+    <h2 id="setTitle">大人設定</h2>
+    <p>小孩不容易誤觸：要按住齒輪 2 秒才會打開。至少要保留一種玩法。</p>
+    <h3>餵食玩法（可以複選，每一輪會隨機出現）</h3>
+    <div class="choices" id="levelChoices">
+      <button class="choice" data-level="1"><span class="e">🐵🍌</span>找食物</button>
+      <button class="choice" data-level="2"><span class="e">🥕🥕🥕</span>數數看</button>
+      <button class="choice" data-level="3"><span class="e">🍎🍓</span>認顏色</button>
+      <button class="choice" data-level="4"><span class="e">🐶🐱</span>分給兩隻</button>
+    </div>
+    <h3>配對翻牌：幾對動物</h3>
+    <div class="choices" id="pairChoices">
+      <button class="choice" data-pairs="4">4 對（8 張）</button>
+      <button class="choice" data-pairs="6">6 對（12 張）</button>
+      <button class="choice" data-pairs="10">10 對（20 張）</button>
+    </div>
+    <h3>休息提醒</h3>
+    <div class="choices" id="restChoices">
+      <button class="choice" data-rest="10">10 分鐘</button>
+      <button class="choice" data-rest="15">15 分鐘</button>
+      <button class="choice" data-rest="20">20 分鐘</button>
+      <button class="choice" data-rest="0">關閉</button>
+    </div>
+    <h3>遊玩紀錄</h3>
+    <div class="stats" id="statsList"></div>
+    <div class="panel-foot">
+      <div>
+        <button class="text-btn" id="clearBtn">清除貼紙簿</button>
+        <button class="text-btn" id="clearStatsBtn">清除紀錄</button>
+      </div>
+      <button class="solid-btn" id="closeSet">完成</button>
+    </div>
+  </div>
+</section>
+
+<script src="js/art.js"></script>
+<script src="js/scenes.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
