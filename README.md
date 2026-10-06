@@ -1,4 +1,4 @@
-# 小芽遊戲屋 Sprout Play
+# lucy 遊戲屋
 
 給 3 歲左右小孩玩的平板小遊戲合集（PWA，可安裝、可離線）。純 HTML/CSS/JS，不需要 build。
 
